@@ -8,6 +8,10 @@ from ta.volatility import AverageTrueRange
 from pybit.unified_trading import HTTP
 import requests
 import datetime
+import csv
+import os
+import schedule
+import threading
 
 # === CONFIGURAZIONE ===
 API_KEY = "DZmHwodLxWTX0GPnSq"
@@ -18,6 +22,8 @@ COPPIE = ["BTCUSDT", "ETHUSDT", "XRPUSDT", "SOLUSDT"]
 LEVA = 5
 CAPITALE_USDT = 50
 INTERVALLO = "15"
+LOG_FILE = "trades_log.csv"
+
 # === FLASK APP ===
 app = Flask('')
 
@@ -74,6 +80,12 @@ def invia_messaggio(msg):
         print("[Telegram] Inviato:", msg)
     except Exception as e:
         print("[Telegram] Errore:", e)
+
+def log_trade(symbol, side, entry_price, exit_price, profit, timestamp):
+    with open(LOG_FILE, mode='a', newline='') as file:
+        writer = csv.writer(file)
+        writer.writerow([timestamp, symbol, side, entry_price, exit_price, profit])
+
 def get_candles(symbol):
     try:
         res = session.get_kline(category="linear", symbol=symbol, interval=INTERVALLO, limit=100)
@@ -136,17 +148,17 @@ def aggiorna_trailing_stop(symbol, entry_price, side):
             if gain >= profit_threshold:
                 nuovo_sl = current_price - (entry_price * sl_percentage)
                 session.set_trading_stop(category="linear", symbol=symbol, stopLoss=round(nuovo_sl, 2))
+                log_trade(symbol, "LONG", entry_price, current_price, (current_price - entry_price) * size, datetime.datetime.utcnow().isoformat())
                 print(f"[Trailing Stop] LONG {symbol}: SL aggiornato a {nuovo_sl}")
         elif side == "Sell":
             gain = (entry_price - current_price) / entry_price
             if gain >= profit_threshold:
                 nuovo_sl = current_price + (entry_price * sl_percentage)
                 session.set_trading_stop(category="linear", symbol=symbol, stopLoss=round(nuovo_sl, 2))
+                log_trade(symbol, "SHORT", entry_price, current_price, (entry_price - current_price) * size, datetime.datetime.utcnow().isoformat())
                 print(f"[Trailing Stop] SHORT {symbol}: SL aggiornato a {nuovo_sl}")
     except Exception as e:
         print(f"[Trailing Stop] Errore: {e}")
-
-
 
 def loop_trading():
     while True:
@@ -178,5 +190,3 @@ def start_bot():
 if __name__ == "__main__":
     keep_alive()
     start_bot()
-
-
