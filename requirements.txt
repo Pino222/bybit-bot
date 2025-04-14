@@ -1,0 +1,6 @@
+pandas
+ta
+flask
+requests
+pybit
+gunicorn
